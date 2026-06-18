@@ -40,6 +40,10 @@ features:
   # most under leave-a-domain-out (+0.052 AUPRC) and is neutral under block CV -- the
   # opposite of domain-identity leakage, i.e. genuine transferable signal. See writeup.md.
   apo_holo_disp:           {axis: G_dynamics,      enabled: true,  module: novel}
+  # anm_msf: elastic-network (ProDy ANM) slow-mode fluctuation on the holo Ca trace. Single-
+  # structure analogue of apo_holo_disp; covers every resolved residue. Enable only if it
+  # passes dynamics_test.py under both CV schemes. See features/dynamics.py.
+  anm_msf:                 {axis: G_dynamics,      enabled: false, module: dynamics}
 
   # --- Axis F: direct simulation (STRETCH; described in writeup, not built in the box) ---
   chimera_pLDDT:           {axis: F_simulation,    enabled: false, module: chimera}
@@ -47,7 +51,7 @@ features:
 # Modeling / evaluation knobs
 target: binary            # binary (headline) | regression
 n_outer_folds: 6          # outer CV folds (grouped/blocked)
-n_inner_folds: 5          # inner CV for LR lambda tuning
+n_inner_folds: 5          # inner CV for the tuning bake-off's grid selection
 group_by: domain          # domain (leave-a-domain-out) | block (contiguous seq blocks)
 n_blocks: 8               # used when group_by == block
 precision_at_k: [20, 50]  # k for precision@k

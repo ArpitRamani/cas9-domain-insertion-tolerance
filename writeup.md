@@ -46,15 +46,13 @@ by axis. Three originally-included features were **removed** after the ablation 
 
 ## Modeling
 
-Two models, compared honestly:
-
-- **Penalized logistic regression** (L2; elastic-net optional) — interpretable, naturally
-  calibrated baseline. The collinear exposure cluster is handled by the penalty. Only
-  lambda is tuned, on a small grid inside the inner CV loop (no Bayesian optimization — the
-  CV metric on 176 positives in grouped folds is too noisy for BO).
-- **BART** (binary/probit, `dbarts`) — posterior predictive gives a calibrated probability
-  **and a 95% credible interval** per site (the decision-support output). Self-regularizing
-  via priors, so left untuned.
+One model: **BART** (Bayesian Additive Regression Trees, binary/probit, `dbarts`). The latent
+score for a residue is a sum of 200 shallow trees passed through the probit link, so
+nonlinearities and feature interactions (e.g. the non-monotonic `min_dist_dna`) are captured
+automatically. The posterior predictive gives a calibrated probability **and a 95% credible
+interval** per site — the decision-support output the use case needs. BART self-regularizes
+via its priors (depth `base=0.95, power=2`, leaf `k=2`, `ntree=200`), so it is left untuned;
+the tuning bake-off below shows why that is the right call.
 
 ## Evaluation
 
@@ -68,9 +66,10 @@ Two models, compared honestly:
 - **Ranking-oriented metrics** (the use case is picking sites): **AUPRC** and
   **precision@{20,50}**; AUROC/accuracy secondary (imbalance makes accuracy meaningless).
 - **Calibration required**: reliability diagram + Brier on held-out grouped folds.
-- **Nested CV**: inner loop tunes LR lambda, outer loop reports — the headline number is not
-  optimistic.
-- **Importance by axis**: LR |coefficient| and BART variable-inclusion aggregated per axis.
+- **Nested CV**: the production model is untuned, so the outer grouped CV is itself the honest
+  estimate; the tuning bake-off below adds an inner loop to select BART's grid point and report
+  the optimism gap.
+- **Importance by axis**: BART variable-inclusion aggregated per axis.
 
 ### Results (nested CV, out-of-fold, n=627, base rate 0.28; final 10-feature model)
 
@@ -78,7 +77,6 @@ Leave-a-domain-out (conservative stress test):
 
 | Model | AUPRC | precision@20 | precision@50 | AUROC | Brier |
 |---|---|---|---|---|---|
-| LR   | 0.56 | **0.75** | 0.64 | 0.77 | 0.173 |
 | **BART** | **0.64** | 0.70 | **0.82** | **0.81** | **0.149** |
 
 Under **block CV** (deployment-realistic) BART reaches **AUPRC 0.65, AUROC 0.84**. Honest
@@ -88,14 +86,13 @@ Progression as the feature set was disciplined: **0.50** (initial 12 features) �
 (drop leaky `dist_to_domain_boundary`) → **0.64** (drop `is_loop`/`backbone_sasa`, add
 `apo_holo_disp`).
 
-**BART beats the LR baseline** on AUPRC/AUROC and calibration (Brier 0.149 vs 0.173;
-reliability diagram `outputs/reliability.png`) via tree interactions (e.g. the non-monotonic
-`min_dist_dna`) and a calibrated credible interval per site; LR edges it only at the very top
-(p@20 0.75 vs 0.70). **Honest caveat to an earlier draft:** LR initially looked far weaker
-(AUPRC 0.33, p@20 at base rate) — almost entirely the leaky `dist_to_domain_boundary`, not
-the linear model. Removing it lifted LR ~+0.22 AUPRC, the single largest change in the study
-and the clearest evidence that **features, not hyperparameters, were the lever** (tuning
-moved ≤0.02; feature edits moved the model by 0.1–0.2).
+BART is well-calibrated (Brier 0.149; reliability diagram `outputs/reliability.png`) and its
+tree interactions exploit signal a linear fit would miss, e.g. the non-monotonic
+`min_dist_dna`, while the posterior gives a credible interval per site. The clearest evidence
+that **features, not hyperparameters, were the lever**: dropping the leaky
+`dist_to_domain_boundary` alone lifted leave-a-domain-out AUPRC by **+0.085** (0.505 → 0.59),
+the single largest change in the study, whereas tuning moved honest AUPRC ≤0.02 (next
+section). Feature edits moved the model by 0.1–0.2; hyperparameters did not.
 
 ### Feature selection: we tested clever features and ended up *subtracting* one
 
@@ -122,51 +119,49 @@ Two ablations (`feature_ablation.py`, `feature_drop_test.py`):
    (0.583→0.635) while staying neutral under block CV (+0.001). A leaky feature does the
    reverse (helps block, hurts domain); helping *most* on the hardest split means it carries
    transferable biophysical signal. The block↔domain gap is our leakage detector throughout.
+4. **Elastic-network dynamics didn't add anything.** As an alternative dynamics descriptor we
+   built an ANM (ProDy) on the holo Cα trace and took each residue's slow-mode fluctuation
+   (`anm_msf`; `features/dynamics.py`, `dynamics_test.py`). Despite covering every resolved
+   residue, it lowered AUPRC slightly under both CV schemes (0.635→0.621 domain, 0.645→0.639
+   block) and was much worse as a swap for `apo_holo_disp` (0.575 domain). ANM reports a single
+   structure's *intrinsic* equilibrium fluctuations, a smooth profile dominated by termini and
+   surface loops, so it overlaps the B-factor feature and is far less specific to the actual
+   apo→holo activation motion that `apo_holo_disp` measures from two real states.
 
 Net lesson: with 176 positives the levers were **disciplined feature removal** and **one
 mechanism-motivated structural feature** — not hyperparameter search and not piling on
 generic features.
 
-**Axis importance** (aggregated, not per-column; final 10-feature model): exposure/room
-(A ≈ 0.30 both models) leads, then function-proximity (B ≈ 0.20), conservation
-(E: LR 0.15 / BART 0.20), and the new dynamics axis (G `apo_holo_disp`: LR 0.16 / BART 0.10)
-— dynamics is LR's 3rd-strongest axis. Local structure (C ≈ 0.09) is now thin since `is_loop`
-was dropped, leaving only `dist_to_sse_end`; low importance ≠ harmful (cf. the high-importance
-*but harmful* `dist_to_domain_boundary` we removed — importance and helpfulness are distinct
-questions). This ordering differs from Mathony 2023 (conservation strongest) — plausibly
-because our DSSP/SASA exposure features are cleaner here than the entropy-based conservation
-proxies. See `outputs/axis_importance.csv`.
+**Axis importance** (BART variable-inclusion, aggregated by axis; final 10-feature model):
+exposure/room (A ≈ 0.30) leads, then function-proximity (B ≈ 0.20), conservation (E ≈ 0.20),
+insertion architecture (D ≈ 0.11), the dynamics axis (G `apo_holo_disp` ≈ 0.10), and local
+structure (C ≈ 0.09, now thin since `is_loop` was dropped, leaving only `dist_to_sse_end`).
+Low importance ≠ harmful (cf. the high-importance *but harmful* `dist_to_domain_boundary` we
+removed — importance and helpfulness are distinct questions). This ordering differs from
+Mathony 2023 (conservation strongest), plausibly because our DSSP/SASA exposure features are
+cleaner here than the entropy-based conservation proxies. See `outputs/axis_importance.csv`.
 
-### Hyperparameter tuning: grid vs Bayesian optimization
+### Hyperparameter tuning is not the lever
 
-The spec forbids Bayesian optimization. We tested *why* with a bake-off under identical
-nested CV (`tuning_bakeoff.py` → `outputs/tuning_comparison.csv`): small grid vs Optuna TPE
-for LR, reporting honest out-of-fold scores and the **optimism gap** (inner-CV-best minus
-honest).
+A small `k × ntree` grid under identical nested CV (`tuning_bakeoff.py` →
+`outputs/tuning_comparison.csv`) tests whether tuning BART buys anything, reporting honest
+out-of-fold scores and the **optimism gap** (inner-CV-best minus honest).
 
 | model | tuner | select on | inner_best | honest AUPRC | honest AUROC | optimism gap |
 |---|---|---|---|---|---|---|
-| LR | grid | AUPRC | 0.577 | 0.346 | 0.618 | 0.231 |
-| LR | BO   | AUPRC | 0.576 | 0.332 | 0.608 | **0.244** |
-| LR | grid | AUROC | 0.811 | 0.331 | 0.587 | 0.224 |
-| LR | BO   | AUROC | 0.811 | 0.334 | 0.594 | 0.217 |
 | BART | grid | AUPRC | 0.597 | 0.524 | 0.731 | **0.073** |
 | BART | grid | AUROC | 0.822 | 0.507 | 0.718 | 0.104 |
 
-Four findings: (1) **BO never beats the grid** — on the AUPRC objective it is *worse* on
-honest score (0.332 < 0.346) with a *larger* optimism gap (0.244 > 0.231); on AUROC it is a
-wash. Exactly the regime where BO can't help: noise-dominated inner objective (3–7 positives
-in some folds), tiny (1–3-knob) space, cheap evals — and BO amplifies the winner's-curse
-bias of maximizing over noise (LR-BO even shifted 0.332→0.336 across identical-seed runs —
-the noise made visible). (2) **Tuning BART is pointless** — the grid moves honest AUPRC only
-0.50→0.52 (within noise); its priors already regularize. (3) The **optimism gap exposes
-which model to trust**: BART's inner-CV estimate (0.597) nearly matches its honest score
-(0.524) — gap **0.073** — whereas LR's gap is **0.23** (inner ~0.58, honest ~0.33). Without
-nested CV the LR number would have been overstated ~75%. BART both scores higher *and*
-generalizes faithfully. (4) **Selecting on AUROC did not improve honest AUROC** (LR: 0.587
-vs 0.618; BART: 0.718 vs 0.731) — optimizing a noisy metric through a noisy inner loop can
-backfire; we select on the use-case metric (AUPRC/precision@k). Net: tuning is not the
-lever. We keep BART at its self-regularizing defaults (k=2, ntree=200) per the spec; the
+Three findings: (1) **Tuning BART is pointless** — the grid moves honest AUPRC only
+0.50→0.52 (within noise); its priors already regularize. (2) The **optimism gap is small**
+(0.073): BART's inner-CV estimate (0.597) nearly matches its honest score (0.524), so the
+model generalizes faithfully and the headline is not an artifact of selection. (3)
+**Selecting on AUROC did not improve honest AUROC** (0.718 vs 0.731) — optimizing a noisy
+metric through a noisy inner loop can backfire, so we select on the use-case metric
+(AUPRC/precision@k). The spec's ban on Bayesian optimization is the right call in this
+regime: a noise-dominated inner objective (3–7 positives in some folds), a tiny knob space,
+and cheap evals are exactly where BO amplifies the winner's-curse bias without buying
+generalization. Net: we keep BART at its self-regularizing defaults (k=2, ntree=200); the
 lever for more performance is features (e.g. `chimera_pLDDT`), not hyperparameters.
 
 ## Limitations

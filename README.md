@@ -31,7 +31,6 @@ conda activate cas9
 python data/parse_labels.py          # -> data/processed/labels.csv (635 measured, 176 tolerant)
 python pipeline.py --build-features   # compute all features (slow: ESM-2 on MPS + MAFFT MSA)
 python pipeline.py                    # reuse cached features: train + nested-CV eval + predict
-# python pipeline.py --skip-bart      # LR only (skip the R/dbarts step)
 ```
 
 Individual feature modules are runnable standalone for debugging, e.g.
@@ -40,15 +39,15 @@ Individual feature modules are runnable standalone for debugging, e.g.
 ## Outputs (`outputs/`)
 
 - **`predictions.csv`** — the deliverable. One row per SpCas9 residue (1–1368): BART
-  probability + 95% credible interval (`bart_prob/lo/hi/sd`), LR probability, honest
-  out-of-fold predictions for measured sites, `in_prediction_set` flag, and all features.
-  The unmeasured residues (`in_prediction_set == 1`) are the product output — the sites the
-  model scores that the screen never tested.
-- **`metrics.json`** — honest out-of-fold AUPRC, precision@{20,50}, AUROC, Brier, plus the
-  per-fold tuned LR lambda and by-axis importance.
-- **`reliability.png`** — reliability diagram (both models, held-out grouped folds).
-- **`axis_importance.csv`** — LR coefficient magnitude and BART variable-inclusion,
-  aggregated **by biological axis** (not raw column).
+  probability + 95% credible interval (`bart_prob/lo/hi/sd`), honest out-of-fold prediction
+  for measured sites, `in_prediction_set` flag, and all features. The unmeasured residues
+  (`in_prediction_set == 1`) are the product output — the sites the model scores that the
+  screen never tested.
+- **`metrics.json`** — honest out-of-fold AUPRC, precision@{20,50}, AUROC, Brier, and
+  by-axis importance.
+- **`reliability.png`** — reliability diagram (held-out grouped folds).
+- **`axis_importance.csv`** — BART variable-inclusion, aggregated **by biological axis**
+  (not raw column).
 
 ## Layout
 
@@ -57,7 +56,7 @@ data/         raw supplement + parsed labels + assembled features
   parse_labels.py
 features/     sasa, distances, structure (DSSP), geometry, conservation (ESM-2 + MSA), chimera (stretch)
   feature_config.yaml   on/off + params + axis per feature
-models/       logreg.py (penalized LR), bart.R + bart.py (dbarts)
+models/       bart.R + bart.py (dbarts)
 eval/         split.py (grouped/blocked CV), metrics.py (AUPRC, p@k), calibration.py
 pipeline.py   assemble -> nested-CV eval -> calibrate -> final-fit -> predict
 writeup.md    target choice, features by axis, evaluation, limitations, next steps

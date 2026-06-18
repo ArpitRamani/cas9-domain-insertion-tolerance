@@ -2,6 +2,7 @@
 INTERVIEW_PREP.md
 CHEAT_SHEET.md
 REVIEW_NOTES.md
+MASTER_STUDY_GUIDE.md
 cas9_insertion_tolerance_spec.md
 
 # OS / editor / tooling
@@ -20,3 +21,12 @@ data/raw/cas9_orthologs.fasta
 
 # scratch
 data/processed/_mafft_in.fasta
+
+# LaTeX build artifacts (keep .tex and .pdf, drop the rest)
+*.aux
+*.out
+*.synctex.gz
+writeup_process.log
+
+# macOS duplicate files
+*\ copy.*

@@ -1,8 +1,8 @@
 """Python wrapper around models/bart.R (dbarts). Writes temp CSVs, shells out to Rscript,
 reads back posterior mean probability + 95% credible interval per test row.
 
-dbarts handles missing values natively, but we median-impute upstream so both models see
-identical feature matrices.
+dbarts handles missing values natively, but we median-impute upstream (per-fold, train
+medians only) so train and test see consistent feature matrices with no leakage.
 """
 from __future__ import annotations
 import os

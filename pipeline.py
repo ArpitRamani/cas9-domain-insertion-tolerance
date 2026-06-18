@@ -2,7 +2,6 @@
 
     python pipeline.py --build-features   # compute feature CSVs (slow: ESM-2 + MAFFT)
     python pipeline.py                    # reuse cached features, train + eval + predict
-    python pipeline.py --skip-bart        # LR only
 
 Outputs land in outputs/: predictions.csv, metrics.json, reliability.png, axis_importance.csv.
 """
@@ -25,7 +24,6 @@ from features import sasa, distances, structure, geometry, conservation, novel
 from eval.split import make_folds
 from eval.metrics import all_metrics
 from eval.calibration import plot_reliability
-from models import logreg
 from models.bart import run_bart
 
 CONFIG_PATH = os.path.join(ROOT, "features", "feature_config.yaml")
@@ -110,40 +108,28 @@ def impute(train_X, *others):
     return (fill(train_X), *[fill(o) for o in others])
 
 
-def nested_cv(Xm, ym, sites, domains, feat_names, config, run_bart_model=True):
+def nested_cv(Xm, ym, sites, domains, feat_names, config):
     group_by = config["group_by"]; n_blocks = config["n_blocks"]
     outer = make_folds(sites, domains, group_by, n_blocks)
-    n = len(ym)
-    oof = {"lr": np.full(n, np.nan), "bart": np.full(n, np.nan)}
-    chosen_Cs = []
+    oof = np.full(len(ym), np.nan)
 
     for tr, te, fold_name in outer:
         if ym[tr].sum() == 0 or ym[te].sum() == 0:
             print(f"skip fold {fold_name}: no positives in train or test")
             continue
-        # LR with inner-CV lambda tuning, grouped on the train subset
-        inner = make_folds(sites[tr], domains[tr], group_by, max(2, n_blocks - 1))
-        best_C, _ = logreg.tune_C(Xm[tr], ym[tr], inner)
-        chosen_Cs.append((fold_name, float(best_C)))
-        est = logreg.fit(Xm[tr], ym[tr], C=best_C)
-        oof["lr"][te] = est.predict_proba(Xm[te])[:, 1]
+        # BART, no tuning (self-regularizing via priors)
+        Xtr_i, Xte_i = impute(Xm[tr], Xm[te])
+        pred, _ = run_bart(Xtr_i, ym[tr], Xte_i, feat_names)
+        oof[te] = pred["prob_mean"].values
+        print(f"fold {fold_name}: n_test={len(te)} pos_test={int(ym[te].sum())}")
 
-        # BART, no tuning (self-regularizing)
-        if run_bart_model:
-            Xtr_i, Xte_i = impute(Xm[tr], Xm[te])
-            pred, _ = run_bart(Xtr_i, ym[tr], Xte_i, feat_names)
-            oof["bart"][te] = pred["prob_mean"].values
-        print(f"fold {fold_name}: n_test={len(te)} pos_test={int(ym[te].sum())} "
-              f"LR C={best_C:.3g}")
-
-    return oof, chosen_Cs, outer
+    return oof, outer
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--build-features", action="store_true")
     ap.add_argument("--force-features", action="store_true")
-    ap.add_argument("--skip-bart", action="store_true")
     args = ap.parse_args()
 
     os.makedirs(OUTPUTS, exist_ok=True)
@@ -173,66 +159,45 @@ def main():
     domains = measured["domain"].values
     print(f"measured={len(measured)} positives={int(ym.sum())}")
 
-    run_bart_model = not args.skip_bart
-
     # nested CV for out-of-fold predictions
-    oof, chosen_Cs, outer = nested_cv(Xm, ym, sites, domains, feat_names, config,
-                                      run_bart_model)
+    oof, outer = nested_cv(Xm, ym, sites, domains, feat_names, config)
 
     metrics = {"config": {k: config[k] for k in
                           ["target", "group_by", "n_blocks", "random_seed"]},
-               "chosen_lambda_per_fold": chosen_Cs, "models": {}}
-    curves = {}
-    for m in (["lr", "bart"] if run_bart_model else ["lr"]):
-        mask = ~np.isnan(oof[m])
-        metrics["models"][m] = all_metrics(ym[mask], oof[m][mask],
-                                           ks=tuple(config["precision_at_k"]))
-        curves[m.upper()] = (ym[mask], oof[m][mask])
-        print(f"{m}: {metrics['models'][m]}")
-
-    plot_reliability(curves, os.path.join(OUTPUTS, "reliability.png"))
+               "models": {}}
+    mask = ~np.isnan(oof)
+    metrics["models"]["bart"] = all_metrics(ym[mask], oof[mask],
+                                            ks=tuple(config["precision_at_k"]))
+    print(f"bart: {metrics['models']['bart']}")
+    plot_reliability({"BART": (ym[mask], oof[mask])},
+                     os.path.join(OUTPUTS, "reliability.png"))
 
     # final fit on all measured, predict all 1368 residues
     Xall = df[feat_names].values.astype(float)
-    # LR: tune C on full grouped CV, fit, predict all
-    full_folds = make_folds(sites, domains, config["group_by"], config["n_blocks"])
-    best_C, _ = logreg.tune_C(Xm, ym, full_folds)
-    final_lr = logreg.fit(Xm, ym, C=best_C)
-    df["lr_prob"] = final_lr.predict_proba(Xall)[:, 1]
+    Xm_i, Xall_i = impute(Xm, Xall)
+    pred_all, varcount = run_bart(Xm_i, ym, Xall_i, feat_names)
+    df["bart_prob"] = pred_all["prob_mean"].values
+    df["bart_lo"] = pred_all["prob_lo"].values
+    df["bart_hi"] = pred_all["prob_hi"].values
+    df["bart_sd"] = pred_all["prob_sd"].values
 
     axis_imp = {}
-    lr_coef = logreg.coefficients(final_lr, feat_names)
-    for f, c in lr_coef.items():
-        a = axis_of(config, f)
-        axis_imp.setdefault(a, {"lr": 0.0, "bart": 0.0})["lr"] += abs(c)
-
-    if run_bart_model:
-        Xm_i, Xall_i = impute(Xm, Xall)
-        pred_all, varcount = run_bart(Xm_i, ym, Xall_i, feat_names)
-        df["bart_prob"] = pred_all["prob_mean"].values
-        df["bart_lo"] = pred_all["prob_lo"].values
-        df["bart_hi"] = pred_all["prob_hi"].values
-        df["bart_sd"] = pred_all["prob_sd"].values
-        if varcount is not None:
-            for _, row in varcount.iterrows():
-                a = axis_of(config, row["feature"])
-                axis_imp.setdefault(a, {"lr": 0.0, "bart": 0.0})["bart"] += row["inclusion"]
+    if varcount is not None:
+        for _, row in varcount.iterrows():
+            a = axis_of(config, row["feature"])
+            axis_imp.setdefault(a, 0.0)
+            axis_imp[a] += row["inclusion"]
 
     # OOF preds back onto measured rows for the table (measured sites only)
-    df["oof_lr_prob"] = np.nan
     df["oof_bart_prob"] = np.nan
     midx = df.index[df["is_measured"] == 1]
-    df.loc[midx, "oof_lr_prob"] = oof["lr"]
-    if run_bart_model:
-        df.loc[midx, "oof_bart_prob"] = oof["bart"]
+    df.loc[midx, "oof_bart_prob"] = oof
 
     df["in_prediction_set"] = (df["is_measured"] == 0).astype(int)
 
     # write outputs
-    cols = (["site", "domain", "is_measured", "in_prediction_set", "label", "fold_change"]
-            + (["bart_prob", "bart_lo", "bart_hi", "bart_sd"] if run_bart_model else [])
-            + ["lr_prob", "oof_lr_prob"]
-            + (["oof_bart_prob"] if run_bart_model else [])
+    cols = (["site", "domain", "is_measured", "in_prediction_set", "label", "fold_change",
+             "bart_prob", "bart_lo", "bart_hi", "bart_sd", "oof_bart_prob"]
             + feat_names)
     pred_table = df[cols].sort_values("site")
     pred_path = os.path.join(OUTPUTS, "predictions.csv")
@@ -240,15 +205,13 @@ def main():
     print(f"wrote {pred_path}  ({len(pred_table)} residues, "
           f"{int(df['in_prediction_set'].sum())} in prediction set)")
 
-    # axis importance, normalized within each model
-    ai = pd.DataFrame([{"axis": a, "lr_importance": v["lr"], "bart_importance": v["bart"]}
+    # axis importance (BART variable-inclusion), normalized
+    ai = pd.DataFrame([{"axis": a, "bart_importance": v}
                        for a, v in sorted(axis_imp.items())])
-    for c in ["lr_importance", "bart_importance"]:
-        if ai[c].sum() > 0:
-            ai[c] = ai[c] / ai[c].sum()
+    if ai["bart_importance"].sum() > 0:
+        ai["bart_importance"] = ai["bart_importance"] / ai["bart_importance"].sum()
     ai.to_csv(os.path.join(OUTPUTS, "axis_importance.csv"), index=False)
     metrics["axis_importance"] = ai.to_dict(orient="records")
-    metrics["final_lr_lambda"] = float(best_C)
 
     with open(os.path.join(OUTPUTS, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=2)

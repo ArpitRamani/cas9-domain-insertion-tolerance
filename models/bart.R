@@ -2,7 +2,7 @@
 # BART (binary/probit) via dbarts. Posterior predictive gives a calibrated probability
 # plus a credible interval per site -- the decision-support output.
 #
-# BART self-regularizes via its priors, so we don't tune it (only LR lambda is tuned).
+# BART self-regularizes via its priors, so we don't tune it.
 # Defaults: ntree=200, k=2, with posterior draws for the credible interval.
 #
 # Usage:

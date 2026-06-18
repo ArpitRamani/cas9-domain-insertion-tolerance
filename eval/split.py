@@ -7,7 +7,7 @@ both train and test). We split by:
                chunks; each chunk is a held-out fold.
 
 Both keep neighbours together. Used for the outer CV and, via nested calls, the inner CV
-(LR lambda tuning).
+(the tuning bake-off's grid selection).
 """
 from __future__ import annotations
 import numpy as np
