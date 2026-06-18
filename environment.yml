@@ -1,0 +1,25 @@
+# Reproducible conda env for the Cas9 insertion-tolerance pipeline.
+#   conda env create -f environment.yml
+#   conda activate cas9
+#   pip install torch fair-esm          # ESM-2 conservation feature
+#   Rscript -e 'install.packages("dbarts", repos="https://cloud.r-project.org")'
+name: cas9
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - openpyxl
+  - pyyaml
+  - requests
+  - biopython
+  - freesasa-python
+  - dssp          # mkdssp 4.x (secondary structure)
+  - prody
+  - mafft         # ortholog MSA for conservation/indel_frequency
+  - pip

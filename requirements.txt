@@ -1,0 +1,16 @@
+# Python deps (Python 3.11). Bio tooling (DSSP, FreeSASA, MAFFT) is easiest via conda —
+# see environment.yml / README. fair-esm + torch are installed via pip.
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+openpyxl
+pyyaml
+requests
+biopython
+freesasa
+prody
+torch
+fair-esm
+# R side: install.packages("dbarts")

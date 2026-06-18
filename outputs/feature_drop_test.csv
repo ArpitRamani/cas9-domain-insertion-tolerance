@@ -1,0 +1,9 @@
+cv,feature_set,n_feats,auprc,auroc,n_oof
+domain,production12,12,0.505,0.727,627
+domain,minus_dist_to_domain_boundary,11,0.59,0.779,627
+domain,minus_backbone_sasa,11,0.503,0.722,627
+domain,minus_both,10,0.585,0.772,627
+block,production12,12,0.649,0.822,635
+block,minus_dist_to_domain_boundary,11,0.637,0.82,635
+block,minus_backbone_sasa,11,0.652,0.822,635
+block,minus_both,10,0.638,0.821,635

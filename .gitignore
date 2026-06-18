@@ -1,0 +1,22 @@
+# Personal notes — not part of the submission
+INTERVIEW_PREP.md
+CHEAT_SHEET.md
+REVIEW_NOTES.md
+cas9_insertion_tolerance_spec.md
+
+# OS / editor / tooling
+.DS_Store
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+
+# Large inputs fetched at setup (see README for the curl/UniProt commands)
+data/raw/4UN3.pdb
+data/raw/4UN3.cif
+data/raw/4CMP.pdb
+data/raw/SpCas9_Q99ZW2.fasta
+data/raw/cas9_orthologs.fasta
+
+# scratch
+data/processed/_mafft_in.fasta

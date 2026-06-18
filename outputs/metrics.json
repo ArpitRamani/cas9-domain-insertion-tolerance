@@ -1,0 +1,89 @@
+{
+  "config": {
+    "target": "binary",
+    "group_by": "domain",
+    "n_blocks": 8,
+    "random_seed": 0
+  },
+  "chosen_lambda_per_fold": [
+    [
+      "HNH",
+      0.002848035868435802
+    ],
+    [
+      "PI",
+      0.008111308307896872
+    ],
+    [
+      "REC",
+      1.5199110829529332
+    ],
+    [
+      "RuvC-I",
+      0.001
+    ],
+    [
+      "RuvC-II",
+      0.001
+    ],
+    [
+      "RuvC-III",
+      0.5336699231206307
+    ]
+  ],
+  "models": {
+    "lr": {
+      "n": 627,
+      "n_pos": 176,
+      "auprc": 0.5635354714995969,
+      "auroc": 0.7723997177988309,
+      "base_rate": 0.2807017543859649,
+      "precision_at_20": 0.75,
+      "precision_at_50": 0.64,
+      "brier": 0.1727554680590629
+    },
+    "bart": {
+      "n": 627,
+      "n_pos": 176,
+      "auprc": 0.6371099919524112,
+      "auroc": 0.8092244507155816,
+      "base_rate": 0.2807017543859649,
+      "precision_at_20": 0.7,
+      "precision_at_50": 0.82,
+      "brier": 0.1493013547761041
+    }
+  },
+  "axis_importance": [
+    {
+      "axis": "A_exposure",
+      "lr_importance": 0.29619939184724364,
+      "bart_importance": 0.2952064138876854
+    },
+    {
+      "axis": "B_function",
+      "lr_importance": 0.20627987357776978,
+      "bart_importance": 0.20310883055405382
+    },
+    {
+      "axis": "C_localstruct",
+      "lr_importance": 0.08979309029177945,
+      "bart_importance": 0.08954090858634502
+    },
+    {
+      "axis": "D_architecture",
+      "lr_importance": 0.10591686340371013,
+      "bart_importance": 0.1101626030816169
+    },
+    {
+      "axis": "E_importance",
+      "lr_importance": 0.14610095431358566,
+      "bart_importance": 0.19913416813180096
+    },
+    {
+      "axis": "G_dynamics",
+      "lr_importance": 0.15570982656591142,
+      "bart_importance": 0.1028470757584979
+    }
+  ],
+  "final_lr_lambda": 0.008111308307896872
+}

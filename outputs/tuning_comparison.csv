@@ -1,0 +1,7 @@
+model,tuner,select_on,inner_best,honest_auprc,honest_auroc,optimism_gap
+LR,LR-grid,auprc,0.577,0.346,0.618,0.231
+LR,LR-BO,auprc,0.578,0.336,0.611,0.242
+LR,LR-grid,auroc,0.811,0.331,0.587,0.224
+LR,LR-BO,auroc,0.811,0.332,0.591,0.22
+BART,BART-grid,auprc,0.597,0.524,0.731,0.073
+BART,BART-grid,auroc,0.822,0.507,0.718,0.104

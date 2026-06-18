@@ -1,0 +1,54 @@
+# Feature configuration: on/off + params per feature, grouped by biological axis.
+# `axis` aggregates model importance by axis, since features within an axis are
+# correlated by design.
+
+features:
+  # --- Axis A: exposure / room ---
+  rel_sasa:                {axis: A_exposure,      enabled: true,  module: sasa}
+  # backbone_sasa disabled: redundant with rel_sasa (ablation drop1 -0.014; drop-test neutral).
+  backbone_sasa:           {axis: A_exposure,      enabled: false, module: sasa}
+  open_volume_18A:         {axis: A_exposure,      enabled: true,  module: geometry, radius: 18.0}
+  flexibility:             {axis: A_exposure,      enabled: true,  module: structure, source: bfactor}
+
+  # --- Axis B: proximity to function ---
+  min_dist_rna:            {axis: B_function,      enabled: true,  module: distances}
+  min_dist_dna:            {axis: B_function,      enabled: true,  module: distances}
+
+  # --- Axis C: local structure ---
+  # is_loop disabled: binary loop/not-loop over-penalizes tolerant helices/sheets (Oakes:
+  # insertions hit nearly every SSE); ablation drop1 -0.007. dist_to_sse_end (continuous,
+  # edge-vs-mid-element) carries the useful nuance instead.
+  is_loop:                 {axis: C_localstruct,   enabled: false, module: structure}
+  dist_to_sse_end:         {axis: C_localstruct,   enabled: true,  module: geometry}
+
+  # --- Axis D: insertion architecture ---
+  # dist_to_domain_boundary DISABLED after ablation (feature_drop_test.py): it partly
+  # encodes domain identity, so it anti-generalizes under leave-a-domain-out (dropping it:
+  # +0.085 AUPRC) while being ~neutral under block CV (-0.012). Removing it makes the model
+  # robust across both CV regimes (0.59 / 0.64 vs a fragile 0.51 / 0.65). See writeup.md.
+  dist_to_domain_boundary: {axis: D_architecture,  enabled: false, module: geometry}
+  indel_frequency:         {axis: D_architecture,  enabled: true,  module: conservation}
+
+  # --- Axis E: importance ---
+  esm2_entropy:            {axis: E_importance,    enabled: true,  module: conservation}
+  msa_conservation:        {axis: E_importance,    enabled: true,  module: conservation}
+
+  # --- Axis G: conformational dynamics ---
+  # apo_holo_disp: per-residue Ca displacement between apo (4CMP) and holo (4UN3) Cas9 after
+  # RuvC-core superposition. Inserting into a large activation mover (e.g. REC2) jams the
+  # conformational change => intolerant. Added after passing the dual-CV ablation: it HELPS
+  # most under leave-a-domain-out (+0.052 AUPRC) and is neutral under block CV -- the
+  # opposite of domain-identity leakage, i.e. genuine transferable signal. See writeup.md.
+  apo_holo_disp:           {axis: G_dynamics,      enabled: true,  module: novel}
+
+  # --- Axis F: direct simulation (STRETCH; described in writeup, not built in the box) ---
+  chimera_pLDDT:           {axis: F_simulation,    enabled: false, module: chimera}
+
+# Modeling / evaluation knobs
+target: binary            # binary (headline) | regression
+n_outer_folds: 6          # outer CV folds (grouped/blocked)
+n_inner_folds: 5          # inner CV for LR lambda tuning
+group_by: domain          # domain (leave-a-domain-out) | block (contiguous seq blocks)
+n_blocks: 8               # used when group_by == block
+precision_at_k: [20, 50]  # k for precision@k
+random_seed: 0
