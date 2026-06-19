@@ -40,9 +40,10 @@ Individual feature modules are runnable standalone for debugging, e.g.
 
 - **`predictions.csv`** — the deliverable. One row per SpCas9 residue (1–1368): BART
   probability + 95% credible interval (`bart_prob/lo/hi/sd`), honest out-of-fold prediction
-  for measured sites, `in_prediction_set` flag, and all features. The unmeasured residues
-  (`in_prediction_set == 1`) are the product output — the sites the model scores that the
-  screen never tested.
+  for measured sites, `in_prediction_set` flag, an `in_support` / `n_features_out` abstention
+  flag (0 = the residue is outside the measured feature envelope, so its score is
+  extrapolation), and all features. The unmeasured residues (`in_prediction_set == 1`) are the
+  product output — the sites the model scores that the screen never tested.
 - **`metrics.json`** — honest out-of-fold AUPRC, precision@{20,50}, AUROC, Brier, and
   by-axis importance.
 - **`reliability.png`** — reliability diagram (held-out grouped folds).

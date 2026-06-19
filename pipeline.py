@@ -195,9 +195,26 @@ def main():
 
     df["in_prediction_set"] = (df["is_measured"] == 0).astype(int)
 
+    # Support / abstention flag: a residue is out-of-support if any feature falls outside the
+    # measured set's 1st-99th percentile envelope. The model trains on measured sites but scores
+    # all 1368, so out-of-support rows are extrapolation and BART's interval understates their
+    # uncertainty -- a user should abstain on or down-weight them. (NaN counts as in-support;
+    # those features are median-imputed.)
+    Xmeas = df.loc[df["is_measured"] == 1, feat_names].values.astype(float)
+    lo = np.nanpercentile(Xmeas, 1, axis=0)
+    hi = np.nanpercentile(Xmeas, 99, axis=0)
+    Xraw = df[feat_names].values.astype(float)
+    oos = np.where(np.isnan(Xraw), False, (Xraw < lo) | (Xraw > hi))
+    df["n_features_out"] = oos.sum(axis=1).astype(int)
+    df["in_support"] = (df["n_features_out"] == 0).astype(int)
+    n_dep_oos = int(((df["in_prediction_set"] == 1) & (df["in_support"] == 0)).sum())
+    print(f"support flag: {n_dep_oos} of {int(df['in_prediction_set'].sum())} prediction-set "
+          f"residues out-of-support")
+
     # write outputs
     cols = (["site", "domain", "is_measured", "in_prediction_set", "label", "fold_change",
-             "bart_prob", "bart_lo", "bart_hi", "bart_sd", "oof_bart_prob"]
+             "bart_prob", "bart_lo", "bart_hi", "bart_sd", "oof_bart_prob",
+             "in_support", "n_features_out"]
             + feat_names)
     pred_table = df[cols].sort_values("site")
     pred_path = os.path.join(OUTPUTS, "predictions.csv")

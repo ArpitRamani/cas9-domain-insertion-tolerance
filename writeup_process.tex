@@ -363,7 +363,9 @@ extrapolation. It is dominated by the apo-to-holo displacement, which is both th
 the most imputed feature, so its contribution to the product scores is the least trustworthy; the
 sequence features barely move. Because tree ensembles extrapolate flat, BART's credible intervals
 reflect posterior uncertainty given the training support rather than out-of-support uncertainty on
-that tail; the principled remedy is conformal prediction with a support check.
+that tail. Acting on this, the delivered scores carry an \texttt{in\_support} flag (and a count of
+out-of-envelope features) marking that 13\% extrapolation tail, so it can be abstained on rather
+than trusted blindly; the principled extension is conformal prediction with a support check.
 
 \begin{table}[h]
 \centering
