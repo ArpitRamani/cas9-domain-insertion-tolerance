@@ -1,0 +1,11 @@
+feature,measured_median,unmeasured_median,std_mean_diff,ks_stat
+apo_holo_disp,3.667,28.385,0.285,0.247
+flexibility,37.99,42.39,0.179,0.107
+open_volume_18A,617.0,599.0,-0.15,0.097
+min_dist_rna,14.539,12.921,-0.165,0.087
+indel_frequency,0.14,0.234,0.095,0.077
+msa_conservation,0.318,0.327,0.138,0.072
+min_dist_dna,16.836,17.079,0.061,0.053
+rel_sasa,0.167,0.183,0.022,0.045
+esm2_entropy,1.11,1.12,0.013,0.038
+dist_to_sse_end,0.0,0.0,0.02,0.018

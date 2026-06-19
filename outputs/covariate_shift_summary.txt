@@ -1,0 +1,4 @@
+shift_auc_p_measured=0.317
+separability=0.683
+out_of_support_frac=0.134 (98/733)
+top_oos=[('dist_to_sse_end', 0.023192360163710776), ('esm2_entropy', 0.023192360163710776), ('flexibility', 0.020463847203274217)]

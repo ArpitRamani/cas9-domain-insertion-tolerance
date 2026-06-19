@@ -354,6 +354,43 @@ value may be artefactual. RuvC is discontinuous in sequence, so only HNH, PI, an
 unseen-domain holdouts. Finally, this concerns a single inserted domain in a single host protein
 scored against static crystal structures, so generalisation to other inserts is untested.
 
+The first limitation is the most important: the model is evaluated on the 635 measured sites but
+deployed on the 733 unmeasured ones, so I quantified the gap between them
+(\texttt{covariate\_shift.py}, Table~\ref{tab:shift}). The shift is moderate and concentrated, not
+pervasive. A gradient-boosted classifier separates the two sets with AUC 0.68, and 13\% of the
+deployment set falls outside the measured 1st--99th percentile envelope and is thus scored by
+extrapolation. It is dominated by the apo-to-holo displacement, which is both the most shifted and
+the most imputed feature, so its contribution to the product scores is the least trustworthy; the
+sequence features barely move. Because tree ensembles extrapolate flat, BART's credible intervals
+reflect posterior uncertainty given the training support rather than out-of-support uncertainty on
+that tail; the principled remedy is conformal prediction with a support check.
+
+\begin{table}[h]
+\centering
+\caption{Covariate shift between the evaluation set (635 measured) and the deployment set (733
+unmeasured), per feature, sorted by Kolmogorov--Smirnov statistic. Standardized mean difference is
+(unmeasured $-$ measured) / pooled SD. Overall: classifier separability AUC 0.68; 13\% of the
+deployment set lies outside the measured 1st--99th percentile envelope.}
+\label{tab:shift}
+\scriptsize
+\begin{tabular}{lcccc}
+\toprule
+Feature & Measured med. & Unmeasured med. & Std.\ mean diff. & KS \\
+\midrule
+apo\_holo\_disp   & 3.67  & 28.39 & $+0.285$ & \textbf{0.247} \\
+flexibility       & 37.99 & 42.39 & $+0.179$ & 0.107 \\
+open\_volume\_18A & 617   & 599   & $-0.150$ & 0.097 \\
+min\_dist\_rna    & 14.54 & 12.92 & $-0.165$ & 0.087 \\
+indel\_frequency  & 0.140 & 0.234 & $+0.095$ & 0.077 \\
+msa\_conservation & 0.318 & 0.327 & $+0.138$ & 0.072 \\
+min\_dist\_dna    & 16.84 & 17.08 & $+0.061$ & 0.053 \\
+rel\_sasa         & 0.167 & 0.183 & $+0.022$ & 0.045 \\
+esm2\_entropy     & 1.110 & 1.120 & $+0.013$ & 0.038 \\
+dist\_to\_sse\_end & 0.00 & 0.00  & $+0.020$ & 0.018 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{What I would do next}
 
 With additional time, the highest-value addition is a feature that directly simulates the
