@@ -348,9 +348,9 @@ The metrics are optimistic by construction, since training and evaluation are re
 significant sites; the 0.82 top-50 precision is a ceiling on a clean subset rather than a
 deployment guarantee, and only experimental validation can establish the true operating point.
 Confidence intervals on the deltas were not computed, and with six folds and 176 positives a
-difference such as 0.64 versus 0.59 is partly noise. The dynamics feature is roughly one-third
-imputed (residues unresolved in the apo structure), with non-random missingness, so part of its
-value may be artefactual. RuvC is discontinuous in sequence, so only HNH, PI, and REC are genuinely
+difference such as 0.64 versus 0.59 is partly noise. The dynamics feature is about one-sixth
+imputed (231 of 1{,}368 residues unresolved in the apo structure), with non-random missingness,
+so part of its value may be artefactual. RuvC is discontinuous in sequence, so only HNH, PI, and REC are genuinely
 unseen-domain holdouts. Finally, this concerns a single inserted domain in a single host protein
 scored against static crystal structures, so generalisation to other inserts is untested.
 
